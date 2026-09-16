@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Camera 13</title>
+
+<style>
+* { box-sizing: border-box; }
+
+:root {
+    --bg: #050507;
+    --panel: #0b0a0e;
+    --panel2: #111015;
+    --line: #39343d;
+    --text: #d7d1d8;
+    --muted: #817a84;
+    --accent: #9d6f8f;
+}
+
+html, body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--bg);
+}
+
+body {
+    color: var(--text);
+    font-family: "Courier New", monospace;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 10px;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#game {
+    width: min(1000px, 100%);
+    max-height: calc(100vh - 20px);
+    background: #07070a;
+    border: 2px solid #302c33;
+    box-shadow: 0 0 35px rgba(0,0,0,.9);
+    position: relative;
+}
+
+/* =========================
+   SCENA
+   ========================= */
+
+#scene {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: #000;
+}
+
+#scene-image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    image-rendering: pixelated;
+    display: block;
+    filter: brightness(.92) contrast(1.08);
+    transition: filter .35s ease;
+}
+
+#scene.dark #scene-image {
+    filter: brightness(.92) contrast(1.08);
+}
+
+/* Vignetta */
+
+#vignette {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(
+        ellipse at center,
+        transparent 48%,
+        rgba(0,0,0,.22) 72%,
+        rgba(0,0,0,.62) 100%
+    );
+}
+
+/* Flash narrativo e blocco interazioni durante le sequenze */
+#flash-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: #fff;
+    opacity: 0;
+    pointer-events: none;
+}
+
+#flash-overlay.flash {
+    animation: nightmareFlash .28s ease-out;
+}
+
+@keyframes nightmareFlash {
+    0% { opacity: 0; }
+    18% { opacity: .85; }
+    42% { opacity: .08; }
+    62% { opacity: .55; }
+    100% { opacity: 0; }
+}
+
+#game.sequence-locked .hotspot,
+#game.sequence-locked .verb,
+#game.sequence-locked #inventory-button {
+    pointer-events: none;
+}
+
+#game.sequence-locked {
+    cursor: wait;
+}
+
+#ending-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    color: #d7d1d8;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 2s ease;
+    text-align: center;
+}
+
+#ending-overlay.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#ending-title {
+    font-size: clamp(22px, 4vw, 42px);
+    letter-spacing: 5px;
+    margin-bottom: 18px;
+}
+
+#ending-text {
+    font-size: clamp(13px, 2vw, 20px);
+    letter-spacing: 3px;
+    color: #817a84;
+}
+
+/* =========================
+   HOTSPOT
+   ========================= */
+
+.hotspot {
+    position: absolute;
+    z-index: 5;
+    cursor: pointer;
+    border: 1px solid transparent;
+    background: transparent;
+}
+
+/* Solo quando DEBUG è attivo */
+
+body.debug .hotspot {
+    border: 2px dashed rgba(255, 215, 80, .9);
+    background: rgba(255, 190, 30, .10);
+}
+
+body.debug .hotspot::after {
+    content: attr(data-label);
+    position: absolute;
+    left: 0;
+    top: -22px;
+    padding: 2px 5px;
+    background: rgba(0,0,0,.9);
+    border: 1px solid #d6ad37;
+    color: #ffe27a;
+    font: 11px "Courier New", monospace;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+body.debug .hotspot.exit-hotspot {
+    border-color: rgba(80, 210, 255, .95);
+    background: rgba(40, 180, 255, .10);
+}
+
+body.debug .hotspot.item-hotspot {
+    border-color: rgba(100, 255, 130, .95);
+    background: rgba(80, 220, 100, .10);
+}
+
+/* =========================
+   INTERFACCIA
+   ========================= */
+
+#interface {
+    background: var(--panel);
+    border-top: 2px solid var(--line);
+    padding: 8px;
+}
+
+#message {
+    min-height: 46px;
+    padding: 7px 10px;
+    background: #07070a;
+    border: 1px solid #28242b;
+    line-height: 1.35;
+    margin-bottom: 6px;
+}
+
+#verbs {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 5px;
+    margin-bottom: 0;
+}
+
+.verb {
+    padding: 6px 4px;
+    min-width: 0;
+    border: 1px solid #3b3640;
+    background: #151319;
+    color: #aaa3ad;
+    font: inherit;
+    cursor: pointer;
+    touch-action: manipulation;
+    user-select: none;
+}
+
+.verb:hover,
+.verb.active {
+    background: #302934;
+    color: #fff;
+    border-color: #756779;
+}
+
+#inventory-title {
+    display: none;
+}
+
+#inventory {
+    display: none;
+}
+
+.slot {
+    min-height: 42px;
+    border: 1px solid #2c2830;
+    background: #08080b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 5px;
+    color: #66616a;
+    font-size: 12px;
+    cursor: default;
+}
+
+.slot.filled {
+    color: #d8d1da;
+    border-color: #4a434d;
+    cursor: pointer;
+}
+
+#statusbar {
+    margin-top: 5px;
+    display: flex;
+    justify-content: space-between;
+    color: #625d65;
+    font-size: 11px;
+}
+
+#debug-indicator {
+    color: #625d65;
+}
+
+body.debug #debug-indicator {
+    color: #ffe27a;
+}
+
+@media (max-width: 620px) {
+    body {
+        padding: 0;
+        min-height: 100vh;
+        overflow: auto;
+        align-items: flex-start;
+    }
+
+    #game {
+        width: 100%;
+        max-height: none;
+        border-left: 0;
+        border-right: 0;
+    }
+
+    #scene {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+    }
+
+    #interface {
+        padding: 8px;
+    }
+
+    #message {
+        min-height: 52px;
+        font-size: 13px;
+    }
+
+    .verb {
+        min-height: 40px;
+        font-size: 11px;
+        padding: 7px 2px;
+    }
+
+    #inventory {
+        gap: 5px;
+    }
+
+    .slot {
+        min-height: 48px;
+        font-size: 11px;
+    }
+
+    #statusbar {
+        font-size: 10px;
+    }
+
+    .hotspot {
+        touch-action: manipulation;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div id="game">
+
+    <div id="scene">
+        <img id="scene-image" src="immagini/camera13.png" alt="Camera 13">
+        <div id="hotspots"></div>
+        <div id="vignette"></div>
+        <div id="flash-overlay"></div>
+    </div>
+
+    <div id="interface">
+
+        <div id="message">
+            Ti svegli lentamente. Non ricordi come sei arrivato qui.
+            La stanza è silenziosa, ma hai la sensazione che qualcuno ti abbia appena lasciato solo.
+        </div>
+
+        <div id="verbs">
+            <button class="verb active" data-verb="LOOK">👁 GUARDA</button>
+            <button class="verb" data-verb="TAKE">✋ PRENDI</button>
+            <button class="verb" data-verb="USE">🔧 USA / VAI</button>
+            <button class="verb" id="inventory-button" type="button">🎒 INVENTARIO</button>
+        </div>
+
+        <div id="inventory-title">INVENTARIO</div>
+        <div id="inventory">
+            <div class="slot" data-slot="0">—</div>
+            <div class="slot" data-slot="1">—</div>
+            <div class="slot" data-slot="2">—</div>
+            <div class="slot" data-slot="3">—</div>
+        </div>
+
+        <div id="statusbar">
+            <span>CAMERA 13</span>
+            <span id="debug-indicator">DEBUG: OFF · premi H</span>
+        </div>
+
+    </div>
+
+    <div id="ending-overlay"><div id="ending-title">CAMERA 13</div><div id="ending-text">SEI USCITO.</div></div>
+</div>
+
+<script>
+"use strict";
+
+/* =========================================================
+   CAMERA 13
+   Coordinate hotspot in percent.
+   Le percentuali sono riferite all'immagine 16:9:
+   sinistra, alto, larghezza, altezza.
+   ========================================================= */
+
+const rooms = {
+
+    camera13: {
+        image: "immagini/camera13.png",
+        name: "CAMERA 13",
+
+        hotspots: [
+            {
+                id: "letto",
+                label: "Letto",
+                x: 2.875, y: 60.432, w: 39.217, h: 33.957,
+                look: "Un vecchio letto d'albergo. Le lenzuola sono fredde e perfettamente immobili.",
+                take: "Non c'è niente che possa esserti utile sul letto.",
+                use: "Non hai motivo di usare qualcosa sul letto."
+            },
+
+            {
+                id: "telefono",
+                label: "Telefono",
+                x: 17.398, y: 49.713, w: 6.465, h: 10.315,
+                look: "Un vecchio telefono nero. Il filo scompare dietro il mobile.",
+                take: "Il telefono è fissato alla parete.",
+                use: "Alzi la cornetta. Per qualche secondo senti solo un fruscio... poi un respiro lontano."
+            },
+
+            {
+                id: "finestra",
+                label: "Finestra",
+                x: 24.361, y: 8.201, w: 14.617, h: 41.727,
+                look: "Fuori è notte. In lontananza si vedono alcune luci, ma nessuna strada.",
+                take: "La finestra è troppo grande per essere portata via.",
+                use: "La finestra è chiusa."
+            },
+
+            {
+                id: "televisore",
+                label: "Televisore",
+                x: 53.3, y: 33.4, w: 12.2, h: 22.5,
+                look: "Un vecchio televisore a tubo catodico. Lo schermo è completamente nero.",
+                take: "Non puoi prendere il televisore.",
+                use: "Premi il pulsante. Lo schermo si accende per un istante mostrando solo neve. Poi torna nero."
+            },
+
+            {
+                id: "orologio",
+                label: "Orologio",
+                x: 45.288, y: 14.245, w: 9.105, h: 15.54,
+                look: "Un vecchio orologio da parete. Le lancette sono immobili, ma non riesci a capire da quanto tempo.",
+                take: "Non puoi prendere l'orologio.",
+                use: "Le lancette non si muovono."
+            },
+
+            {
+                id: "quadro",
+                label: "Quadro",
+                x: 1.0, y: 11.8, w: 14.5, h: 25.9,
+                look: "Un paesaggio di montagna. C'è qualcosa di stranamente familiare: la finestra dipinta sembra appartenere a questo stesso hotel.",
+                take: "Il quadro è fissato alla parete.",
+                use: "Non succede nulla."
+            },
+
+            {
+                id: "portaBagno",
+                label: "Porta bagno",
+                x: 89.355, y: 10.417, w: 10.742, h: 48.611,
+                className: "exit-hotspot",
+                look: "Il bagno è aperto. Una luce verdastra illumina le piastrelle.",
+                take: "Non puoi prendere la porta.",
+                use: "Entri nel bagno.",
+                goTo: "bagno"
+            },
+
+            {
+                id: "portaCorridoio",
+                label: "Porta 13",
+                x: 70.128, y: 14.101, w: 13.738, h: 51.367,
+                className: "exit-hotspot",
+                look: "La porta della Camera 13.",
+                take: "Non puoi prendere la porta.",
+                use: "Abbassi la maniglia. La porta si apre lentamente sul corridoio.",
+                goTo: "corridoio"
+            }
+        ]
+    },
+
+    camera13Incubo: {
+        image: "immagini/camera13_incubo.png",
+        name: "CAMERA 13 — INCUBO",
+
+        hotspots: [
+            {
+                id: "letto", label: "Letto",
+                x: 2.875, y: 60.432, w: 39.217, h: 33.957,
+                look: "Il letto è lo stesso di prima, ma ora le lenzuola sono macchiate e sembrano umide. Non vuoi avvicinarti.",
+                take: "Non c'è niente che tu voglia toccare.",
+                use: "Non è il momento di avvicinarti al letto."
+            },
+            {
+                id: "telefono", label: "Telefono",
+                x: 17.398, y: 49.713, w: 6.465, h: 10.315,
+                look: "Il telefono è ancora lì. Il filo è teso come se qualcuno lo avesse tirato.",
+                take: "Il telefono è fissato alla parete.",
+                use: "La cornetta sembra aspettare che tu la sollevi."
+            },
+            {
+                id: "finestra", label: "Finestra",
+                x: 24.361, y: 8.201, w: 14.617, h: 41.727,
+                look: "La finestra è immersa nel buio. Le luci che vedevi prima sono sparite.",
+                take: "La finestra non si apre.",
+                use: "Il vetro è freddissimo al tatto."
+            },
+            {
+                id: "televisore", label: "Televisore",
+                x: 53.3, y: 33.4, w: 12.2, h: 22.5,
+                look: "La televisione trasmette solo neve. Per un istante distingui una sagoma nella schermata.",
+                take: "Non puoi prendere il televisore.",
+                use: "La neve sullo schermo aumenta. Poi compare per un istante la scritta 02:13."
+            },
+            {
+                id: "orologio", label: "Orologio",
+                x: 45.288, y: 14.245, w: 9.105, h: 15.54,
+                look: "Non è più fermo. Le lancette sono tornate a muoversi e si sono fermate sulle 02:13.",
+                take: "Non puoi prendere l'orologio.",
+                use: "Le lancette tremano, ma non avanzano oltre le 02:13."
+            },
+            {
+                id: "quadro", label: "Quadro",
+                x: 1.0, y: 11.8, w: 14.5, h: 25.9,
+                look: "Il paesaggio è cambiato. Nel dipinto c'è una finestra illuminata... e sembra essere la finestra di questa stanza.",
+                take: "Il quadro è fissato alla parete.",
+                use: "Per un attimo hai la sensazione che qualcosa si muova oltre la finestra del dipinto."
+            },
+            {
+                id: "portaBagno", label: "Porta bagno",
+                x: 89.355, y: 10.417, w: 10.742, h: 48.611,
+                className: "exit-hotspot",
+                look: "Il bagno è aperto. La luce verdastra pulsa lentamente.",
+                take: "Non puoi prendere la porta.",
+                use: "Non vuoi entrare nel bagno."
+            },
+            {
+                id: "portaCorridoio", label: "Porta 13",
+                x: 70.128, y: 14.101, w: 13.738, h: 51.367,
+                className: "exit-hotspot",
+                look: "La porta 13 è socchiusa. Oltre la soglia non c'è il corridoio.",
+                take: "Non puoi prendere la porta.",
+                use: "Guardi oltre la soglia. Non riconosci più il luogo che c'è dall'altra parte."
+            }
+        ]
+    },
+
+    bagno: {
+        image: "immagini/bagno.png",
+        name: "BAGNO",
+
+        hotspots: [
+            {
+                id: "vasca",
+                label: "Vasca",
+                x: 74.98, y: 40.20, w: 25.02, h: 59.23,
+                look: "Una vecchia vasca con una tenda scolorita. Sul fondo c'è un sottile strato d'acqua.",
+                take: "Non c'è niente che tu possa prendere.",
+                use: "Non succede nulla."
+            },
+
+            {
+                id: "lavandino",
+                label: "Lavandino",
+                x: 16.60, y: 47.35, w: 17.24, h: 13.02,
+                className: "item-hotspot",
+                look: "Il lavandino è sporco. Lo scarico è coperto da una patina scura.",
+                take: "Nel lavandino trovi una piccola chiave di ottone, incastrata vicino allo scarico.",
+                item: "Chiave",
+                itemMessage: "Una piccola chiave di ottone. È stranamente calda.",
+                use: "Il rubinetto perde lentamente una goccia d'acqua."
+            },
+
+            {
+                id: "specchio",
+                label: "Specchio",
+                x: 18.85, y: 10.0, w: 14.27, h: 30.76,
+                look: "Il tuo riflesso sembra normale. Per un attimo hai l'impressione che abbia mosso la testa un istante dopo di te.",
+                take: "Non puoi prendere lo specchio.",
+                use: "Ti avvicini allo specchio. Il riflesso torna perfettamente normale."
+            },
+
+            {
+                id: "wc",
+                label: "WC",
+                x: 55.09, y: 42.63, w: 17.00, h: 40.77,
+                look: "Un vecchio WC. Niente di particolare... per ora.",
+                take: "Decisamente no.",
+                use: "Non vuoi sapere cosa potrebbe succedere."
+            },
+
+            {
+                id: "portaCamera",
+                label: "Porta camera",
+                x: 0, y: 4, w: 13, h: 92,
+                className: "exit-hotspot",
+                look: "La porta conduce alla Camera 13.",
+                take: "Non puoi prendere la porta.",
+                use: "Torni nella Camera 13.",
+                goTo: "camera13"
+            }
+        ]
+    },
+
+    corridoio: {
+        image: "immagini/corridoio.png",
+        name: "CORRIDOIO",
+
+        hotspots: [
+            {
+                id: "porta11",
+                label: "Porta 11",
+                x: 6.41, y: 20.47, w: 10.34, h: 45.47,
+                className: "exit-hotspot",
+                look: "Camera 11. Nessuna risposta dall'interno.",
+                take: "Non puoi prendere la porta.",
+                use: "La porta è chiusa."
+            },
+
+            {
+                id: "quadroSinistro",
+                label: "Quadro sinistro",
+                x: 19.83, y: 23.28, w: 5.62, h: 22.74,
+                look: "Un paesaggio di montagna. È stranamente simile a quello della Camera 13.",
+                take: "Il quadro è fissato alla parete.",
+                use: "Non succede nulla."
+            },
+
+            {
+                id: "porta12",
+                label: "Porta 12",
+                x: 26.96, y: 20.04, w: 5.02, h: 55.82,
+                className: "exit-hotspot",
+                look: "Camera 12. Silenzio assoluto.",
+                take: "Non puoi prendere la porta.",
+                use: "La porta è chiusa."
+            },
+
+            {
+                id: "porta14",
+                label: "Porta 14",
+                x: 46.25, y: 33.41, w: 7.44, h: 24.35,
+                className: "exit-hotspot",
+                look: "La porta 14 è chiusa. La targhetta sembra stranamente pulita rispetto alle altre.",
+                take: "Non puoi prendere la porta.",
+                use: "La serratura sembra richiedere una chiave.",
+                requires: "Chiave",
+                goTo: "stanza14",
+                success: "La chiave entra nella serratura. CLICK. La porta si apre lentamente."
+            },
+
+            {
+                id: "quadroCentrale",
+                label: "Quadro centrale",
+                x: 54.84, y: 36.31, w: 3.87, h: 8.30,
+                look: "Un piccolo quadro floreale. Alcuni dettagli sembrano dipinti di recente.",
+                take: "È fissato alla parete.",
+                use: "Non succede nulla."
+            },
+
+            {
+                id: "pianta",
+                label: "Pianta",
+                x: 55.02, y: 46.98, w: 4.90, h: 10.78,
+                look: "Una pianta ornamentale. Le foglie sono sorprendentemente verdi.",
+                take: "È troppo grande per essere portata via.",
+                use: "Non succede nulla."
+            },
+
+            {
+                id: "porta15",
+                label: "Porta 15",
+                x: 67.89, y: 24.57, w: 4.96, h: 36.53,
+                className: "exit-hotspot",
+                look: "Camera 15. Senti qualcosa dall'altra parte. Quando avvicini l'orecchio, smette.",
+                take: "Non puoi prendere la porta.",
+                use: "La porta è chiusa."
+            },
+
+            {
+                id: "quadroDestro",
+                label: "Quadro destro",
+                x: 75.09, y: 24.57, w: 6.17, h: 18.86,
+                look: "Un altro paesaggio di montagna. Hai la sensazione di averlo già visto.",
+                take: "Il quadro è fissato alla parete.",
+                use: "Non succede nulla."
+            },
+
+            {
+                id: "mobile",
+                label: "Lampada + mobiletto",
+                x: 73.22, y: 46.88, w: 9.25, h: 31.68,
+                className: "item-hotspot",
+                look: "Un piccolo mobile di legno con una lampada sopra. C'è uno strato di polvere ovunque tranne che sul cassetto.",
+                take: "Apri il cassetto. È vuoto.",
+                use: "La lampada emette un leggero sfarfallio."
+            },
+
+            {
+                id: "porta16",
+                label: "Porta 16",
+                x: 83.31, y: 12.72, w: 11.13, h: 66.49,
+                className: "exit-hotspot",
+                look: "Camera 16. La porta è socchiusa di pochi millimetri.",
+                take: "Non puoi prendere la porta.",
+                use: "Spingi la porta. Non si muove."
+            },
+
+            {
+                id: "indietro",
+                label: "Ritorno Camera 13",
+                x: 0, y: 82, w: 100, h: 18,
+                className: "exit-hotspot",
+                look: "Il corridoio alle tue spalle è buio.",
+                take: "Non c'è niente da prendere.",
+                use: "Torni verso la Camera 13.",
+                goTo: "camera13"
+            }
+        ]
+    },
+
+    stanza14: {
+        image: "immagini/camera14.png",
+        name: "CAMERA 14",
+
+        hotspots: [
+            {
+                id: "quadro14",
+                label: "Quadro",
+                x: 9.36, y: 11.38, w: 13.68, h: 35.67,
+                look: "È lo stesso paesaggio della Camera 13. Ma qui, nel dipinto, compare una finestra illuminata che nella prima stanza non c'era.",
+                take: "Il quadro è fissato alla parete.",
+                use: "Lo osservi da vicino. La finestra dipinta sembra guardare direttamente verso di te."
+            },
+
+            {
+                id: "televisore14",
+                label: "Televisore",
+                x: 34.16, y: 42.13, w: 11.44, h: 10.95,
+                look: "Un vecchio televisore a tubo catodico. È spento.",
+                take: "Non puoi prendere il televisore.",
+                use: "Lo schermo si accende per un istante. Appare la Camera 13, vista dall'interno."
+            },
+
+            {
+                id: "registratore",
+                label: "Registratore",
+                x: 69.28, y: 54.63, w: 12.00, h: 13.34,
+                className: "item-hotspot",
+                look: "Un vecchio registratore a cassette. C'è una cassetta già inserita.",
+                take: "Non puoi prendere il registratore.",
+                use: "Premi PLAY. Il nastro comincia a girare."
+            },
+
+            {
+                id: "orologio14",
+                label: "Orologio",
+                x: 74.64, y: 18.40, w: 8.32, h: 20.22,
+                look: "Segna esattamente le 02:13.",
+                take: "Non puoi prendere l'orologio.",
+                use: "Le lancette sono immobili."
+            },
+
+            {
+                id: "indietro14",
+                label: "Porta",
+                x: 85.84, y: 10.25, w: 13.92, h: 85.53,
+                className: "exit-hotspot",
+                look: "La porta conduce al corridoio.",
+                take: "Non puoi prendere la porta.",
+                use: "Torni nel corridoio.",
+                goTo: "corridoio"
+            }
+        ]
+    }
+};
+
+
+/* =========================================================
+   STATO DEL GIOCO
+   ========================================================= */
+
+let currentRoom = "camera13";
+let activeVerb = "LOOK";
+let inventory = [];
+let debugMode = false;
+
+let clockSeen = false;
+let mirrorSeen = false;
+let tvSeen = false;
+let paintingSeen = false;
+let room14Visited = false;
+let tapePlayed = false;
+let nightmareClockSeen = false;
+let nightmareTVSeen = false;
+let endingTriggered = false;
+let selectedItem = null;
+let sequenceActive = false;
+
+
+/* =========================================================
+   ELEMENTI
+   ========================================================= */
+
+const scene = document.getElementById("scene");
+const sceneImage = document.getElementById("scene-image");
+const hotspotsLayer = document.getElementById("hotspots");
+const message = document.getElementById("message");
+const debugIndicator = document.getElementById("debug-indicator");
+const game = document.getElementById("game");
+const flashOverlay = document.getElementById("flash-overlay");
+const endingOverlay = document.getElementById("ending-overlay");
+
+
+/* =========================================================
+   MESSAGGI
+   ========================================================= */
+
+function showMessage(text) {
+    message.textContent = text;
+}
+
+
+/* =========================================================
+   VERBI
+   ========================================================= */
+
+document.querySelectorAll(".verb").forEach(button => {
+
+    button.addEventListener("click", () => {
+
+        activeVerb = button.dataset.verb;
+        selectedItem = null;
+
+        document.querySelectorAll(".verb")
+            .forEach(b => b.classList.remove("active"));
+
+        button.classList.add("active");
+
+        if (activeVerb === "LOOK") {
+            showMessage("Guarda un oggetto della stanza.");
+        } else if (activeVerb === "TAKE") {
+            showMessage("Prova a prendere qualcosa.");
+        } else {
+            showMessage("Scegli qualcosa su cui usare un oggetto.");
+        }
+    });
+});
+
+
+/* =========================================================
+   INVENTARIO
+   ========================================================= */
+
+const inventoryButton = document.getElementById("inventory-button");
+
+inventoryButton.addEventListener("click", () => {
+    if (sequenceActive) return;
+
+    if (inventory.length === 0) {
+        showMessage("Non hai oggetti nell'inventario.");
+        return;
+    }
+
+    const items = inventory.map(item => `"${item}"`).join(", ");
+    showMessage(`Hai ${items}.`);
+
+    // Se stai usando un oggetto e ne hai uno solo, lo selezioniamo direttamente.
+    if (activeVerb === "USE" && inventory.length === 1) {
+        selectedItem = inventory[0];
+        showMessage(`Hai "${inventory[0]}". Oggetto selezionato: clicca ora su ciò su cui vuoi usarlo.`);
+    }
+});
+
+function hasItem(name) {
+    return inventory.includes(name);
+}
+
+function addItem(name) {
+
+    if (hasItem(name)) return false;
+
+    if (inventory.length >= 4) {
+        showMessage("L'inventario è pieno.");
+        return false;
+    }
+
+    inventory.push(name);
+    renderInventory();
+    return true;
+}
+
+function renderInventory() {
+
+    document.querySelectorAll(".slot").forEach((slot, index) => {
+
+        const item = inventory[index];
+
+        slot.textContent = item || "—";
+        slot.classList.toggle("filled", !!item);
+
+        slot.onclick = () => {
+
+            if (!item) return;
+
+            if (activeVerb === "USE") {
+
+                selectedItem = item;
+
+                showMessage(
+                    `Hai selezionato "${item}". Ora clicca sull'oggetto su cui vuoi usarlo.`
+                );
+
+            } else {
+
+                showMessage(`È una "${item}".`);
+            }
+        };
+    });
+}
+
+
+/* =========================================================
+   SEQUENZE NARRATIVE
+   ========================================================= */
+
+function flashScreen() {
+    flashOverlay.classList.remove("flash");
+    void flashOverlay.offsetWidth;
+    flashOverlay.classList.add("flash");
+}
+
+function setSequenceLock(locked) {
+    sequenceActive = locked;
+    game.classList.toggle("sequence-locked", locked);
+}
+
+function runNarrativeSequence(steps, onComplete = null) {
+    if (!steps || !steps.length) {
+        if (onComplete) onComplete();
+        return;
+    }
+
+    setSequenceLock(true);
+    let index = 0;
+
+    const next = () => {
+        if (index >= steps.length) {
+            setSequenceLock(false);
+            if (onComplete) onComplete();
+            return;
+        }
+
+        const step = steps[index++];
+        flashScreen();
+        showMessage(step.text);
+
+        setTimeout(next, (step.duration || 3500) + 2000);
+    };
+
+    next();
+}
+
+
+/* =========================================================
+   STANZA
+   ========================================================= */
+
+function loadRoom(roomId, customMessage = null) {
+
+    const room = rooms[roomId];
+
+    if (!room) return;
+
+    currentRoom = roomId;
+
+    sceneImage.onerror = () => {
+        if (roomId === "stanza14") {
+            sceneImage.onerror = null;
+            sceneImage.src = "immagini/corridoio.png";
+        }
+    };
+
+    sceneImage.src = room.image;
+    sceneImage.alt = room.name;
+
+    scene.classList.toggle("dark",
+        roomId === "camera13Incubo"
+    );
+
+    hotspotsLayer.innerHTML = "";
+
+    room.hotspots.forEach(h => {
+
+        const el = document.createElement("div");
+
+        el.className = "hotspot " + (h.className || "");
+        el.dataset.label = h.label;
+
+        el.style.left = h.x + "%";
+        el.style.top = h.y + "%";
+        el.style.width = h.w + "%";
+        el.style.height = h.h + "%";
+
+        el.addEventListener("click", () => interact(h));
+
+        hotspotsLayer.appendChild(el);
+    });
+
+    if (roomId === "stanza14") {
+        room14Visited = true;
+    }
+
+    if (customMessage) {
+        showMessage(customMessage);
+        return;
+    }
+
+    if (roomId === "camera13") {
+
+        if (tapePlayed) {
+            showMessage(
+                "Sei di nuovo nella Camera 13. Qualcosa nella stanza è cambiato."
+            );
+        } else {
+            showMessage(
+                "Sei nella Camera 13. Non ricordi come sei arrivato qui. Una strana sensazione di familiarità ti mette a disagio."
+            );
+        }
+
+    } else if (roomId === "camera13Incubo") {
+
+        showMessage(
+            "Apri gli occhi. È la Camera 13... ma non è più la stanza che conoscevi."
+        );
+
+    } else if (roomId === "bagno") {
+
+        showMessage(
+            "Il bagno è piccolo, freddo e illuminato da una luce verdastra."
+        );
+
+    } else if (roomId === "corridoio") {
+
+        showMessage(
+            "Il corridoio è deserto. Da qualche parte senti un rumore sordo."
+        );
+
+    } else if (roomId === "stanza14") {
+
+        showMessage(
+            "La stanza è buia e immobile. Hai la sensazione che qualcuno sia appena uscito."
+        );
+    }
+}
+
+
+/* =========================================================
+   FINALE
+   ========================================================= */
+
+function triggerEnding() {
+
+    if (endingTriggered) return;
+
+    if (!nightmareClockSeen || !nightmareTVSeen) {
+        if (!nightmareClockSeen && !nightmareTVSeen) {
+            showMessage("Non ancora. Devi osservare l'orologio e il televisore dell'incubo.");
+        } else if (!nightmareClockSeen) {
+            showMessage("Non ancora. Devi osservare l'orologio: le 02:13 sono la chiave.");
+        } else {
+            showMessage("Non ancora. Devi usare il televisore e vedere cosa è accaduto nella Camera 13.");
+        }
+        return;
+    }
+
+    endingTriggered = true;
+
+    runNarrativeSequence([
+        {
+            text: "Alzi la cornetta. Questa volta non senti un respiro. Senti la tua stessa voce, molto più vicina: «Adesso ricordi.»",
+            duration: 3500
+        },
+        {
+            text: "Il televisore si accende da solo. Il fotogramma torna: Camera 13, ore 02:13. Una donna entra nella stanza. Tu la stai aspettando.",
+            duration: 4200
+        },
+        {
+            text: "La discussione degenera. Vedi la porta della Camera 13 chiudersi. Poi un gesto improvviso. Il resto della scena ti torna addosso tutto insieme.",
+            duration: 4200
+        },
+        {
+            text: "Sei morto qui. Non nella Camera 14. La Camera 14 era il vostro rifugio, il luogo dei vostri incontri. La tua morte è avvenuta nella 13.",
+            duration: 4200
+        },
+        {
+            text: "Capisci finalmente perché sei rimasto. Non stavi cercando una via d'uscita dal corridoio. Stavi cercando di ricordare.",
+            duration: 4200
+        },
+        {
+            text: "La porta della Camera 13 è davanti a te. Per la prima volta non hai paura di attraversarla.",
+            duration: 3500
+        },
+        {
+            text: "La porta si apre dall'altra parte.",
+            duration: 3500
+        }
+    ], () => {
+        endingOverlay.classList.add("show");
+        setTimeout(() => {
+            document.getElementById("ending-text").textContent = "SEI USCITO.\n";
+        }, 1800);
+    });
+}
+
+
+/* =========================================================
+   INTERAZIONI
+   ========================================================= */
+
+function interact(h) {
+
+    if (sequenceActive) return;
+
+    /* ---- GUARDA ---- */
+
+    if (activeVerb === "LOOK") {
+
+        if (currentRoom === "camera13" && h.id === "orologio") {
+            clockSeen = true;
+            showMessage(
+                "Un vecchio orologio da parete. Le lancette sono immobili, ma non riesci a capire da quanto tempo."
+            );
+            return;
+        }
+
+        if (currentRoom === "camera13Incubo" && h.id === "orologio") {
+            nightmareClockSeen = true;
+            showMessage(
+                "Le lancette si sono fermate sulle 02:13. Ora capisci che non è un numero casuale."
+            );
+            return;
+        }
+
+        if (currentRoom === "bagno" && h.id === "specchio") {
+            mirrorSeen = true;
+            if (hasItem("Chiave")) {
+                showMessage(
+                    "Per un istante il tuo riflesso non ha la chiave in mano. Dietro di te compare una donna. Ti volti: non c'è nessuno."
+                );
+            } else {
+                showMessage(
+                    "Il tuo riflesso sembra normale. Per un attimo hai l'impressione che abbia mosso la testa un istante dopo di te."
+                );
+            }
+            return;
+        }
+
+        if ((currentRoom === "camera13" || currentRoom === "camera13Incubo") && h.id === "telefono") {
+
+            if (tapePlayed) {
+                showMessage(
+                    "Il telefono è immobile. Sembra quasi che stia aspettando che tu lo usi."
+                );
+            } else {
+                showMessage(h.look);
+            }
+
+            return;
+        }
+
+        if (currentRoom === "stanza14" && h.id === "quadro14") {
+            paintingSeen = true;
+            showMessage(
+                "Lo stesso paesaggio della Camera 13. Ma qui la finestra dipinta è illuminata. Sotto la cornice noti una piccola macchia scura, come una vecchia impronta."
+            );
+            return;
+        }
+
+        showMessage(h.look || "Non noti nulla di particolare.");
+        return;
+    }
+
+
+    /* ---- PRENDI ---- */
+
+    if (activeVerb === "TAKE") {
+
+        if (h.item) {
+
+            if (hasItem(h.item)) {
+                showMessage("L'hai già preso.");
+                return;
+            }
+
+            if (addItem(h.item)) {
+
+                if (h.item === "Chiave") {
+                    showMessage(
+                        "Una piccola chiave di ottone. È stranamente calda."
+                    );
+                } else {
+                    showMessage(
+                        h.itemMessage || `Hai preso: ${h.item}.`
+                    );
+                }
+            }
+
+            return;
+        }
+
+        showMessage(h.take || "Non puoi prenderlo.");
+        return;
+    }
+
+
+    /* ---- USA ---- */
+
+    if (activeVerb === "USE") {
+
+        /* Uso di un oggetto dell'inventario */
+        if (selectedItem) {
+
+            if (h.id === "porta14" && selectedItem === "Chiave") {
+
+                if (!hasItem("Chiave")) {
+                    showMessage("Non hai la chiave.");
+                    return;
+                }
+
+                selectedItem = null;
+
+                showMessage(
+                    "La chiave entra nella serratura. CLICK. La porta si apre lentamente."
+                );
+
+                setTimeout(() => {
+                    loadRoom(
+                        "stanza14",
+                        "La stanza 14 è buia e immobile. Hai la sensazione che qualcuno sia appena uscito."
+                    );
+                }, 1200);
+
+                return;
+            }
+
+            showMessage(
+                `Non sembra possibile usare "${selectedItem}" su questo oggetto.`
+            );
+
+            selectedItem = null;
+            return;
+        }
+
+
+        /* Telefono */
+        if (currentRoom === "camera13" && h.id === "telefono") {
+            showMessage(
+                "Alzi la cornetta. Per qualche secondo senti solo un fruscio... poi una voce lontanissima pronuncia il tuo nome."
+            );
+            return;
+        }
+
+        if (currentRoom === "camera13Incubo" && h.id === "telefono") {
+            triggerEnding();
+            return;
+        }
+
+        /* Televisore Camera 13 / incubo */
+        if (currentRoom === "camera13" && h.id === "televisore") {
+            tvSeen = true;
+            showMessage(
+                "Premi il pulsante. Lo schermo mostra per un istante la Camera 13 da un'angolazione impossibile. Sul letto ci sono due ombre: una in piedi, una a terra. Poi torna nero."
+            );
+            return;
+        }
+
+        if (currentRoom === "camera13Incubo" && h.id === "televisore") {
+            nightmareTVSeen = true;
+            showMessage(
+                "La neve scompare. Vedi la Camera 13 com'era prima del tuo arrivo: una donna è sulla soglia e tu sei davanti a lei. L'immagine si interrompe prima di mostrare il finale."
+            );
+            return;
+        }
+
+
+        /* Registratore della stanza 14 */
+        if (currentRoom === "stanza14" && h.id === "registratore") {
+
+            if (!tapePlayed && (!mirrorSeen || !tvSeen || !paintingSeen)) {
+                showMessage(
+                    "Il registratore non parte. Hai la sensazione che prima dovresti mettere insieme ciò che hai visto nella Camera 13 e in questa stanza."
+                );
+                return;
+            }
+
+            if (!tapePlayed) {
+
+                tapePlayed = true;
+
+                runNarrativeSequence([
+                    {
+                        text: "La cassetta comincia a girare. Una voce sussurra: «Se stai ascoltando questo messaggio, significa che sei tornato.»",
+                        duration: 3500
+                    },
+                    {
+                        text: "La voce continua: «Sono io. Una versione di te che ha già vissuto questa notte.»",
+                        duration: 3500
+                    },
+                    {
+                        text: "«La Camera 14 era il vostro posto. Ma tu non sei morto lì.»",
+                        duration: 3500
+                    },
+                    {
+                        text: "«Quando ricorderai le 02:13, capirai perché continui a tornare nella Camera 13.»",
+                        duration: 3500
+                    },
+                    {
+                        text: "«Non cercare di scappare prima di ricordare. Altrimenti il ciclo ricomincerà.»",
+                        duration: 3500
+                    },
+                    {
+                        text: "«Quando ricorderai le 02:13, capirai perché continui a tornare nella Camera 13.»",
+                        duration: 3500
+                    },
+                    {
+                        text: "«Non cercare di scappare prima di ricordare. Altrimenti il ciclo ricomincerà.»",
+                        duration: 3500
+                    }
+                ], () => {
+                    loadRoom(
+                        "camera13Incubo",
+                        "Apri gli occhi. Sei tornato nella Camera 13. Questa volta senti che la stanza vuole mostrarti qualcosa."
+                    );
+
+                    runNarrativeSequence([
+                        {
+                            text: "Apri gli occhi. Sei tornato nella Camera 13.",
+                            duration: 2800
+                        },
+                        {
+                            text: "Il letto, il televisore, la porta. Tutto sembra identico. Ma tu non sei più la stessa persona che è entrata nel corridoio.",
+                            duration: 3600
+                        },
+                        {
+                            text: "Guardi la stanza. Da qualche parte c'è il ricordo che ti manca.",
+                            duration: 3200
+                        }
+                    ]);
+                });
+
+            } else {
+
+                showMessage(
+                    "Il registratore ha già riprodotto tutta la cassetta."
+                );
+            }
+
+            return;
+        }
+
+
+        /* Oggetti speciali */
+        if (h.id === "orologio14") {
+
+            showMessage(
+                "Segna esattamente le 02:13. Le lancette sono immobili."
+            );
+
+            return;
+        }
+
+
+        /* Cambio stanza */
+        if (h.goTo) {
+
+            if (h.requires && !hasItem(h.requires)) {
+                showMessage(h.use || "La porta è chiusa.");
+                return;
+            }
+
+            loadRoom(
+                h.goTo,
+                h.use || "Ti sposti."
+            );
+
+            return;
+        }
+
+
+        showMessage(h.use || "Non succede nulla.");
+        return;
+    }
+}
+
+
+/* =========================================================
+   DEBUG — TASTO H
+   ========================================================= */
+
+document.addEventListener("keydown", event => {
+
+    if (event.key.toLowerCase() !== "h") return;
+
+    debugMode = !debugMode;
+
+    document.body.classList.toggle("debug", debugMode);
+
+    debugIndicator.textContent =
+        debugMode
+            ? "DEBUG: ON · premi H per chiudere"
+            : "DEBUG: OFF · premi H";
+});
+
+
+/* =========================================================
+   AVVIO
+   ========================================================= */
+
+renderInventory();
+loadRoom("camera13");
+
+
+</script>
+
+</body>
+</html>
